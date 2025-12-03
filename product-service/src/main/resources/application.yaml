@@ -1,0 +1,30 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/product_db
+    username: techuser
+    password: techpass
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  sql:
+    init:
+      mode: never
+
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: error
+    org.hibernate.engine.jdbc.env.internal: error
+    org.hibernate.orm.deprecation: error
+    org.springframework: warn
+    com.jdvergara.techtest: info
