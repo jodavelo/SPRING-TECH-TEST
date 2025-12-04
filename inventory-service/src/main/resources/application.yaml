@@ -3,6 +3,13 @@ server:
 
 product-service:
   base-url: http://localhost:8081
+  client:
+    connect-timeout-ms: 1000
+    read-timeout-ms: 2000
+    max-retries: 3
+  api-key:
+    header: X-API-KEY
+    value: ${INTERNAL_API_KEY:my-super-secret-key}
 
 management:
   endpoints:

@@ -45,6 +45,11 @@ spring:
     init:
       mode: never
 
+security:
+  api-key:
+    header: X-API-KEY
+    value: ${INTERNAL_API_KEY:my-super-secret-key}
+
 logging:
   level:
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: error
