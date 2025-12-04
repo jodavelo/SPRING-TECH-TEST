@@ -5,26 +5,31 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ApiKeyFilter extends OncePerRequestFilter {
 
+    private static final String HEADER_NAME = "X-API-KEY";
+
     private final ApiKeyProperties apiKeyProperties;
 
+    /**
+     * Solo se filtra las rutas que empiezan por /api/.
+     * Swagger (/swagger-ui/**), OpenAPI (/v3/api-docs/**),
+     * actuator (/actuator/**), etc., quedan libres.
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        // No filtrar actuator ni error ni estáticos si tuvieras
-        return path.startsWith("/actuator")
-                || path.startsWith("/error");
+        return !path.startsWith("/api/");
     }
 
     @Override
@@ -34,21 +39,22 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String headerName = apiKeyProperties.getHeader();
-        String expectedValue = apiKeyProperties.getValue();
+        String apiKey = request.getHeader(HEADER_NAME);
 
-        String provided = request.getHeader(headerName);
+        if (!StringUtils.hasText(apiKey)
+                || !apiKeyProperties.getValue().equals(apiKey)) {
 
-        if (expectedValue != null && expectedValue.equals(provided)) {
-            // OK, sigue la cadena
-            filterChain.doFilter(request, response);
-        } else {
-            log.warn("Petición sin API key válida a {} {}", request.getMethod(), request.getRequestURI());
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType("application/json");
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("""
-                {"status":401,"message":"Invalid or missing API key"}
+                {
+                  "status": 401,
+                  "message": "Invalid or missing API key"
+                }
                 """);
+            return;
         }
+
+        filterChain.doFilter(request, response);
     }
 }
