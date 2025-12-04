@@ -6,6 +6,8 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+import org.hibernate.annotations.CreationTimestamp;
+
 @Entity
 @Table(name = "purchases")
 @Getter
@@ -31,6 +33,7 @@ public class Purchase {
     @Column(name = "total_price", nullable = false)
     private BigDecimal totalPrice;
 
-    @Column(name = "purchased_at", insertable = false)
+    @CreationTimestamp
+    @Column(name = "purchased_at", nullable = false, updatable = false)
     private OffsetDateTime purchasedAt;
 }
