@@ -743,7 +743,6 @@ Para garantizar la calidad del código, seguí este proceso:
 3. **Tests unitarios**: Todo código nuevo debe tener test que pase
 4. **Tests de integración**: Validar el flujo completo con BD real
 5. **Pruebas manuales**: Usar Postman para probar endpoints
-6. **Code review mental**: Preguntarme "¿Entiendo qué hace este código?"
 
 
 ### Beneficios y Limitaciones
