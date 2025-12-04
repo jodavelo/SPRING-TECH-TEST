@@ -1,0 +1,13 @@
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\client\ProductClient.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\ApplicationStartupLogger.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\HealthCheckConfig.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\domain\InventoryItem.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\domain\Purchase.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\InventoryItemRequest.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\InventoryItemResponse.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\ProductDto.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\PurchaseRequest.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\PurchaseResponse.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\InventoryServiceApplication.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\repository\InventoryItemRepository.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\repository\PurchaseRepository.java

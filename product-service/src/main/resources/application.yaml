@@ -1,7 +1,28 @@
 server:
   port: 8081
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
 spring:
+  application:
+    name: product-service
   datasource:
     url: jdbc:postgresql://localhost:5432/product_db
     username: techuser
@@ -13,7 +34,10 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
     open-in-view: false
 
@@ -28,3 +52,12 @@ logging:
     org.hibernate.orm.deprecation: error
     org.springframework: warn
     com.jdvergara.techtest: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+info:
+  app:
+    name: Product Service
+    description: Microservicio de gestión de productos
+    version: 1.0.0
+    port: 8081
