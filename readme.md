@@ -649,51 +649,6 @@ Durante el desarrollo de esta prueba técnica, utilicé las siguientes herramien
 - **Tests unitarios**: Generó la estructura base de los tests con `@BeforeEach`, mocks de repositorios y casos de prueba básicos
 - **Métodos de repositorio**: Sugirió queries de Spring Data JPA como `findByProductId`, `existsBySku`
 
-**Ejemplo de uso**:
-```java
-// Escribí el comentario:
-// Create a method to validate if a product exists by SKU
-
-// Copilot sugirió:
-public boolean existsBySku(String sku) {
-    return productRepository.existsBySku(sku);
-}
-```
-
-**Verificación de calidad**:
-- ✅ Revisé cada sugerencia antes de aceptarla
-- ✅ Validé que las anotaciones de Spring fueran correctas
-- ✅ Ejecuté tests para confirmar que el código funcionaba
-
-#### 2. Claude (Anthropic) via GitHub Copilot Chat
-
-**Uso principal**: Consultas sobre arquitectura y mejores prácticas.
-
-**Tareas específicas**:
-- **Decisión del endpoint de compra**: Consulté si debía estar en Product o Inventory Service. Claude recomendó Inventory Service por separación de responsabilidades
-- **Manejo de excepciones**: Pregunté sobre el patrón `@RestControllerAdvice` y cómo estructurar los `ErrorResponse`
-- **Configuración de RestTemplate**: Claude sugirió usar Apache HttpClient 5 con connection pooling y timeouts
-- **Patrón de reintentos**: Explicó cómo implementar reintentos sin usar librerías adicionales como Resilience4j
-
-**Ejemplo de consulta**:
-```
-Pregunta: "¿Dónde debería estar el endpoint de compra, 
-en product-service o inventory-service?"
-
-Respuesta de Claude:
-"Debería estar en inventory-service porque:
-1. La compra es una operación sobre el stock
-2. Inventory debe controlar las transacciones de su propia BD
-3. Product Service debe enfocarse solo en el catálogo
-..."
-```
-
-**Verificación
-
-**Verificación de calidad**:
-- ✅ Contraté las respuestas con la documentación oficial de Spring
-- ✅ Implementé las recomendaciones y las probé
-- ✅ Adapté las sugerencias al contexto específico de mi aplicación
 
 #### 3. ChatGPT (OpenAI) - Consultas puntuales
 
@@ -744,9 +699,8 @@ Estimación de uso de IA en el proyecto:
 
 **Beneficios del uso de IA**:
 - ⚡ Velocidad: Autocompletado redujo tiempo en tareas repetitivas
-- 📚 Aprendizaje: Claude explicó conceptos que no conocía completamente
+- 📚 Aprendizaje: Claude explicó conceptos que no me acordaba completamente
 - 🐛 Debugging: ChatGPT ayudó a identificar problemas rápidamente
-- 💡 Ideas: Copilot sugirió patrones que no había considerado
 
 **Limitaciones encontradas**:
 - ❌ A veces sugiere código deprecated (ej: `setConnectTimeout(int)`)
