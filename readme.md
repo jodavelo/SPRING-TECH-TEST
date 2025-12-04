@@ -113,6 +113,69 @@ mysql -h localhost -P 3307 -u techuser -p
 # Password: techpass
 ```
 
+### Ejecución de pruebas
+
+Para ejecutar las pruebas unitarias y de integración:
+
+#### Opción 1: Con Maven Wrapper (Recomendado)
+
+**En Windows:**
+```bash
+# Product Service
+cd product-service
+.\mvnw.cmd clean test
+
+# Inventory Service
+cd inventory-service
+.\mvnw.cmd clean test
+```
+
+**En Linux/Mac:**
+```bash
+# Product Service
+cd product-service
+./mvnw clean test
+
+# Inventory Service
+cd inventory-service
+./mvnw clean test
+```
+
+#### Opción 2: Con Maven (si tienes Maven instalado globalmente)
+
+```bash
+# Product Service
+cd product-service
+mvn clean test
+
+# Inventory Service
+cd inventory-service
+mvn clean test
+```
+
+#### Resultado esperado
+
+Las pruebas deberían completarse exitosamente con el siguiente resultado:
+
+**Product Service (6 tests):**
+```
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+**Inventory Service (7 tests):**
+```
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+**Total: 13 tests pasando** ✅
+
+**Nota:** Las pruebas requieren que MySQL esté corriendo. Si usas Docker, asegúrate de ejecutar primero:
+```bash
+docker-compose up mysql -d
+```
+
 ---
 
 ## Descripción de la arquitectura
@@ -682,18 +745,6 @@ Para garantizar la calidad del código, seguí este proceso:
 5. **Pruebas manuales**: Usar Postman para probar endpoints
 6. **Code review mental**: Preguntarme "¿Entiendo qué hace este código?"
 
-### Estadística de Uso de IA
-
-Estimación de uso de IA en el proyecto:
-
-- **Código de lógica de negocio (Services)**: 20% IA, 80% manual
-- **Controladores (Controllers)**: 40% IA (estructura), 60% manual (lógica)
-- **DTOs y Entidades**: 60% IA (sugerencias), 40% manual (validaciones)
-- **Tests**: 50% IA (estructura base), 50% manual (casos específicos)
-- **Configuración (Config classes)**: 30% IA, 70% manual
-- **Documentación**: 5% IA (formateo), 95% manual
-
-**Total aproximado**: 35% asistido por IA, 65% desarrollo manual
 
 ### Beneficios y Limitaciones
 
