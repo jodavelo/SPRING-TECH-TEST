@@ -2,21 +2,21 @@
     "configurations": [
         {
             "type": "java",
-            "name": "Spring Boot-InventoryServiceApplication<inventory-service>",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "mainClass": "com.jdvergara.techtest.inventory_service.InventoryServiceApplication",
-            "projectName": "inventory-service",
-            "args": "",
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "type": "java",
             "name": "Spring Boot-ProductServiceApplication<product-service>",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "mainClass": "com.jdvergara.techtest.product.ProductServiceApplication",
             "projectName": "product-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-InventoryServiceApplication<inventory-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.jdvergara.techtest.inventory_service.InventoryServiceApplication",
+            "projectName": "inventory-service",
             "args": "",
             "envFile": "${workspaceFolder}/.env"
         }

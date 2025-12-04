@@ -1,19 +1,20 @@
 version: "3.8"
 
 services:
-  postgres:
-    image: postgres:16
-    container_name: tech-postgres
+  mysql:
+    image: mysql:8.0
+    container_name: tech-mysql
     environment:
-      POSTGRES_USER: techuser
-      POSTGRES_PASSWORD: techpass
-      POSTGRES_HOST_AUTH_METHOD: md5
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_USER: techuser
+      MYSQL_PASSWORD: techpass
     ports:
-      - "5432:5432"
+      - "3307:3306"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
 
 volumes:
-  pgdata:
+  mysqldata:
