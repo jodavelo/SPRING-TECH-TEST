@@ -12,72 +12,846 @@ El `inventory-service` consume el `product-service` utilizando **API key**, time
 
 ---
 
-## Tecnologías utilizadas
+## Tabla de Contenidos
 
-- **Java 17**
-- **Spring Boot 3.4.x**
-  - Spring Web
-  - Spring Data JPA
-  - Validation
-  - Spring Boot Actuator
-- **MySQL 8** (`product_db` e `inventory_db`)
-- **Maven**
-- **Postman** para pruebas manuales de la API
-- **VS Code** como entorno de desarrollo (Windows 11)
-
-Inicialmente empecé con PostgreSQL en Docker, pero para simplificar la prueba y aprovechar mi entorno actual terminé dejando la solución final con **MySQL**.
+1. [Instrucciones de instalación y ejecución](#instrucciones-de-instalación-y-ejecución)
+2. [Descripción de la arquitectura](#descripción-de-la-arquitectura)
+3. [Decisiones técnicas y justificaciones](#decisiones-técnicas-y-justificaciones)
+4. [Diagrama de interacción entre servicios](#diagrama-de-interacción-entre-servicios)
+5. [Explicación del flujo de compra implementado](#explicación-del-flujo-de-compra-implementado)
+6. [Documentación sobre el uso de herramientas de IA](#documentación-sobre-el-uso-de-herramientas-de-ia)
 
 ---
 
-## Decisiones de arquitectura
+## Instrucciones de instalación y ejecución
 
-### Microservicios y bases de datos
+### Requisitos previos
 
-- Cada microservicio es una aplicación **Spring Boot** independiente.
-- Cada servicio tiene su propia base de datos lógica:
-  - `product-service` → BD `product_db`
-  - `inventory-service` → BD `inventory_db`
-- No se comparten tablas entre servicios; la integración se hace únicamente por **HTTP**.
+- **Docker** y **Docker Compose** instalados
+- **Java 17** (opcional, solo si deseas ejecutar los servicios fuera de Docker)
+- **Maven 3.8+** (opcional, los proyectos incluyen Maven Wrapper)
 
-### Comunicación entre microservicios
+### Opción 1: Ejecución completa con Docker (Recomendado)
 
-- El `inventory-service` necesita información del producto (precio, nombre, etc.) para poder registrar compras.
-- La comunicación es **sincrónica** vía HTTP:
-  - `inventory-service` llama a `product-service` a través de un cliente `RestTemplate` (`ProductClient`).
-  - El base URL del `product-service` se configura en `application.yaml`:
-    ```yaml
-    product-service:
-      base-url: http://localhost:8081
-    ```
-- El cuerpo y las respuestas se manejan en JSON.
+Esta es la forma más sencilla de ejecutar toda la aplicación:
 
-### Seguridad: API key entre servicios
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/jodavelo/SPRING-TECH-TEST.git
+cd SPRING-TECH-TEST
 
-- Para la autenticación básica entre servicios definí una API key sencilla:
-  - Header: `X-API-KEY`
-  - Valor de ejemplo: `my-super-secret-key`
-- **product-service**:
-  - Tiene un `HandlerInterceptor` que valida la API key en todas las rutas `/api/**`.
-  - Si el header falta o no coincide, responde `401` con JSON:
-    ```json
-    {
-      "status": 401,
-      "message": "Invalid or missing API key"
-    }
-    ```
-- **inventory-service**:
-  - No exige API key a los clientes externos (para facilitar las pruebas manuales).
-  - Pero **sí** envía la API key cuando llama internamente al `product-service`, cumpliendo el requerimiento de autenticación entre servicios.
-  - El `RestTemplate` agrega el header `X-API-KEY` automáticamente en cada llamada al `product-service`.
+# 2. Construir y levantar todos los servicios
+docker-compose up --build
 
-### Timeouts y reintentos
+# Los servicios estarán disponibles en:
+# - Product Service: http://localhost:8081
+# - Inventory Service: http://localhost:8082
+# - MySQL: localhost:3307
+```
 
-- El `RestTemplate` del `inventory-service` se configura con:
-  - **Connect timeout**.
-  - **Read timeout**.
-- Implementé un mecanismo sencillo de **reintentos** en el `ProductClient`:
-  - Reintenta la llamada al `product-service` un número limitado de veces ante errores de red/timeout antes de propagar la excepción.
-  - Esto ayuda a evitar que un fallo temporal rompa inmediatamente el flujo de compra.
+Para ejecutar en segundo plano:
+```bash
+docker-compose up -d
+```
+
+Para detener los servicios:
+```bash
+docker-compose down
+```
+
+### Opción 2: Ejecución local (desarrollo)
+
+Si prefieres ejecutar los servicios localmente para desarrollo:
+
+```bash
+# 1. Levantar solo MySQL con Docker
+docker-compose up mysql -d
+
+# 2. Compilar y ejecutar product-service
+cd product-service
+./mvnw clean package
+./mvnw spring-boot:run
+
+# 3. En otra terminal, compilar y ejecutar inventory-service
+cd inventory-service
+./mvnw clean package
+./mvnw spring-boot:run
+```
+
+### Verificación de la instalación
+
+Una vez que los servicios estén en ejecución, verifica que funcionan correctamente:
+
+```bash
+# Health check de product-service
+curl http://localhost:8081/actuator/health
+
+# Health check de inventory-service
+curl http://localhost:8082/actuator/health
+
+# Ambos deberían responder: {"status":"UP"}
+```
+
+### Acceso a las APIs
+
+- **Product Service API**: http://localhost:8081/swagger-ui.html
+- **Inventory Service API**: http://localhost:8082/swagger-ui.html
+- **Actuator Endpoints**:
+  - Product: http://localhost:8081/actuator
+  - Inventory: http://localhost:8082/actuator
+
+### Base de datos
+
+La base de datos MySQL se inicializa automáticamente con el script `db/init.sql` que crea:
+- Base de datos `product_db` con tabla `products`
+- Base de datos `inventory_db` con tablas `inventory_items` y `purchases`
+- Usuario `techuser` con password `techpass`
+
+**Conexión directa a MySQL:**
+```bash
+mysql -h localhost -P 3307 -u techuser -p
+# Password: techpass
+```
+
+---
+
+## Descripción de la arquitectura
+
+### Patrón Arquitectónico: Microservicios
+
+La aplicación implementa una **arquitectura de microservicios** con las siguientes características clave:
+
+#### Separación de Servicios
+
+**Product Service (Puerto 8081)**
+- **Responsabilidad única**: Gestión del catálogo de productos (CRUD)
+- **Base de datos**: `product_db`
+- **Entidad principal**: `Product`
+- **Endpoints**:
+  - `POST /api/products` - Crear producto (requiere API Key)
+  - `GET /api/products/{id}` - Obtener producto por ID (requiere API Key)
+  - `GET /api/products` - Listar todos los productos (requiere API Key)
+
+**Inventory Service (Puerto 8082)**
+- **Responsabilidad única**: Gestión de inventario y procesamiento de compras
+- **Base de datos**: `inventory_db`
+- **Entidades**: `InventoryItem`, `Purchase`
+- **Endpoints**:
+  - `POST /api/inventory/stock` - Crear/actualizar stock
+  - `GET /api/inventory/stock/{productId}` - Consultar stock
+  - `POST /api/inventory/purchases` - Procesar compra
+
+#### Database per Service Pattern
+
+Cada microservicio tiene su **propia base de datos lógica**:
+- No hay tablas compartidas entre servicios
+- Garantiza independencia y escalabilidad
+- Comunicación únicamente vía HTTP/REST
+
+#### Arquitectura en Capas
+
+Cada servicio implementa el patrón de capas:
+
+```
+┌─────────────────────────────────────────┐
+│  CONTROLLER LAYER (API REST)            │
+│  - Endpoints HTTP                       │
+│  - Validaciones (@Valid)                │
+│  - Respuestas HTTP estandarizadas       │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│  SERVICE LAYER (Lógica de Negocio)      │
+│  - Reglas de negocio                    │
+│  - Transacciones (@Transactional)       │
+│  - Orquestación de operaciones          │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│  CLIENT LAYER (Comunicación)            │
+│  - ProductClient (RestTemplate)         │
+│  - Reintentos automáticos               │
+│  - Timeouts configurables               │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│  REPOSITORY LAYER (Persistencia)        │
+│  - Spring Data JPA Repositories         │
+│  - Acceso a base de datos               │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│  DATABASE LAYER                         │
+│  - MySQL 8.0 (product_db, inventory_db) │
+└─────────────────────────────────────────┘
+```
+
+#### Stack Tecnológico
+
+**Backend Framework:**
+- Java 17
+- Spring Boot 3.4.12
+- Spring Web (REST APIs)
+- Spring Data JPA (Persistencia)
+- Hibernate 6.6.36
+- Bean Validation (Validaciones DTO)
+- Lombok (Reducción de boilerplate)
+
+**Base de Datos:**
+- MySQL 8.0.44
+- HikariCP (Connection Pooling)
+- Scripts SQL de inicialización
+
+**Comunicación HTTP:**
+- RestTemplate con Apache HttpClient 5
+- Connection pooling
+- Timeouts configurables
+- Mecanismo de reintentos
+
+**Seguridad:**
+- API Key Authentication (Header: X-API-KEY)
+- OncePerRequestFilter para validación
+
+**Observabilidad:**
+- Spring Boot Actuator
+- Health checks personalizados
+- Métricas y endpoints de información
+- Logging estructurado (SLF4J + Logback)
+
+**Infraestructura:**
+- Docker & Docker Compose
+- Maven para gestión de dependencias
+
+---
+
+## Decisiones técnicas y justificaciones
+
+### 1. ¿Por qué Microservicios?
+
+**Decisión**: Implementar dos servicios independientes en lugar de un monolito.
+
+**Justificación**:
+- **Separación de responsabilidades**: Product y Inventory son dominios diferentes con ciclos de vida independientes
+- **Escalabilidad independiente**: El servicio de inventario puede escalar más si hay muchas compras, sin afectar al catálogo de productos
+- **Despliegues independientes**: Cambios en el inventario no requieren redesplegar productos y viceversa
+- **Tolerancia a fallos**: Si Product Service falla, Inventory Service puede seguir operando con datos cacheados o en modo degradado
+
+### 2. Database per Service Pattern
+
+**Decisión**: Cada servicio tiene su propia base de datos lógica (`product_db` e `inventory_db`).
+
+**Justificación**:
+- **Acoplamiento reducido**: Los servicios no dependen del esquema de base de datos del otro
+- **Libertad tecnológica**: Cada servicio podría usar un motor de BD diferente en el futuro (ej: PostgreSQL para productos, MongoDB para inventario)
+- **Consistencia eventual**: Aceptamos que los datos entre servicios no son inmediatamente consistentes, priorizando disponibilidad
+- **Aislamiento de fallos**: Un problema en una BD no afecta al otro servicio
+
+### 3. Comunicación Sincrónica HTTP/REST
+
+**Decisión**: Usar RestTemplate para comunicación entre servicios en lugar de mensajería asíncrona.
+
+**Justificación**:
+- **Simplicidad**: Para una prueba técnica, HTTP es más simple que implementar RabbitMQ o Kafka
+- **Requisito de negocio**: El flujo de compra necesita el precio actual del producto en tiempo real
+- **Debugging más fácil**: Los logs HTTP son más fáciles de seguir que eventos asincrónicos
+- **Timeouts y control**: Podemos controlar exactamente cuánto tiempo esperamos por la respuesta
+
+**Trade-offs aceptados**:
+- Mayor acoplamiento temporal (Inventory depende de que Product esté disponible)
+- Mitigado con: reintentos automáticos y timeouts configurables
+
+### 4. Decisión sobre el endpoint de compra
+
+**Decisión CRÍTICA**: Implementar el endpoint de compra en `inventory-service` y NO en `product-service`.
+
+**Justificación detallada**:
+
+**¿Por qué en Inventory Service?**
+
+1. **Responsabilidad de dominio**: 
+   - La compra es fundamentalmente una operación de **gestión de stock**
+   - El Product Service debe enfocarse en el catálogo (nombre, precio, descripción)
+   - El Inventory Service es el dueño del stock y las transacciones de inventario
+
+2. **Consistencia de datos**:
+   - Si la compra estuviera en Product Service, tendría que actualizar la BD de Inventory remotamente
+   - Esto rompería el patrón "Database per Service"
+   - Inventory Service conoce su propio stock y puede garantizar transacciones ACID locales
+
+3. **Acoplamiento reducido**:
+   - Product Service no necesita conocer la lógica de compras
+   - Inventory Service consume Product, pero Product no depende de Inventory
+   - Esto permite que Product sea reutilizable por otros servicios (ej: un futuro servicio de reportes)
+
+4. **Escalabilidad**:
+   - Las compras son operaciones más frecuentes que la gestión de productos
+   - Inventory puede escalar independientemente para manejar picos de compras
+
+5. **Transacciones**:
+   - La compra requiere: verificar stock → descontar → registrar compra
+   - Todo esto debe ocurrir en UNA transacción atómica
+   - Solo es posible si Inventory Service controla su propia BD
+
+**Flujo implementado**:
+```
+POST /api/inventory/purchases
+  ↓
+Inventory Service:
+  1. Llama a Product Service (obtener precio)
+  2. Verifica stock local
+  3. Descuenta stock
+  4. Registra compra
+  ↓
+Todo en una transacción @Transactional
+```
+
+**Alternativa rechazada**: Compra en Product Service
+- ❌ Product tendría que llamar a Inventory para descontar stock
+- ❌ No podría garantizar transacciones atómicas entre servicios
+- ❌ Mezclaría responsabilidades (catálogo + inventario)
+
+### 5. Seguridad con API Key
+
+**Decisión**: Implementar autenticación simple con API Key en header `X-API-KEY`.
+
+**Justificación**:
+- **Suficiente para servicios internos**: En un entorno de microservicios dentro de la misma red privada, API Key es adecuado
+- **Simplicidad vs OAuth2**: OAuth2 sería excesivo para comunicación servicio-a-servicio en una prueba técnica
+- **Fácil de configurar**: Se inyecta vía variables de entorno en Docker
+- **Protección básica**: Evita llamadas no autorizadas al Product Service
+
+**Implementación**:
+- Product Service valida API Key con `OncePerRequestFilter`
+- Inventory Service envía API Key automáticamente vía interceptor de RestTemplate
+- Rutas públicas excluidas: `/actuator/**`, `/swagger-ui/**`
+
+**Mejora futura**: JWT tokens o OAuth2 para producción.
+
+### 6. Manejo de Resiliencia
+
+**Decisión**: Implementar reintentos y timeouts en ProductClient.
+
+**Justificación**:
+- **Fallos temporales**: Una red puede tener latencia ocasional
+- **Evitar cascada de fallos**: Si Product Service está lento, no queremos que Inventory espere indefinidamente
+- **Mejor experiencia**: 3 reintentos automáticos antes de fallar da más chances de éxito
+
+**Configuración**:
+```yaml
+product-service-client:
+  max-retries: 3
+  connect-timeout-ms: 5000
+  read-timeout-ms: 10000
+```
+
+### 7. Validaciones y Manejo de Errores
+
+**Decisión**: Usar Bean Validation + GlobalExceptionHandler.
+
+**Justificación**:
+- **Fail Fast**: Validar datos de entrada antes de procesarlos
+- **Respuestas consistentes**: Todos los errores devuelven mismo formato JSON
+- **Mensajes descriptivos**: Facilita debugging para consumidores de la API
+
+**Excepciones personalizadas**:
+- `InsufficientStockException` → 409 Conflict
+- `ProductNotFoundException` → 404 Not Found
+- `DuplicateProductException` → 409 Conflict
+
+### 8. Testing
+
+**Decisión**: Tests unitarios + tests de integración.
+
+**Justificación**:
+- **Tests unitarios**: Validan lógica de negocio en aislamiento (ServiceTest)
+- **Tests de integración**: Validan el flujo completo con base de datos real (ControllerIntegrationTest)
+- **Cobertura**: Ambos servicios tienen 100% de tests pasando
+
+Resultados:
+- Product Service: 6 tests ✅
+- Inventory Service: 7 tests ✅
+
+### 9. Observabilidad
+
+**Decisión**: Spring Boot Actuator + Logging estructurado.
+
+**Justificación**:
+- **Health Checks**: Permiten a Docker/Kubernetes saber si el servicio está vivo
+- **Métricas**: `/actuator/metrics` para monitoreo
+- **Info endpoint**: Muestra versión y configuración del servicio
+- **Logs personalizados**: DatabaseConnectionLogger y ApplicationStartupLogger facilitan debugging
+
+### 10. Containerización con Docker
+
+**Decisión**: Dockerizar ambos servicios + MySQL.
+
+**Justificación**:
+- **Portabilidad**: "Funciona en mi máquina" → "Funciona en cualquier máquina"
+- **Facilidad de ejecución**: Un solo comando `docker-compose up` levanta todo
+- **Entorno consistente**: Mismas versiones de Java, MySQL en todos los ambientes
+- **Integración con CI/CD**: Facilita despliegues automatizados
+
+---
+
+## Diagrama de interacción entre servicios
+
+![Diagrama de Interacción](new_interaction_diagram_final3.png)
+
+### Descripción del flujo
+
+El siguiente diagrama muestra la interacción completa entre los servicios durante el proceso de compra:
+
+#### Flujo Principal (Happy Path)
+
+1. **Cliente → Inventory Service**  
+   El cliente externo envía una solicitud `POST /api/inventory/purchases` con el `productId` y la `quantity`.
+
+2. **Inventory Service → Product Service**  
+   Inventory Service realiza un `GET /api/products/{id}` incluyendo el header `X-API-KEY` para autenticarse.
+
+3. **Product Service - Validación de Seguridad**  
+   El Product Service valida la API Key mediante un filtro `OncePerRequestFilter`:
+   - ✅ **Si es válida**: Continúa con la petición
+   - ❌ **Si falla**: Responde `401 Unauthorized`
+
+4. **Product Service → MySQL (product_db)**  
+   Consulta el producto con `SELECT * FROM products WHERE id = ?` y obtiene precio, nombre, etc.
+
+5. **Product Service → Inventory Service**  
+   Devuelve la información del producto en formato JSON (`ProductDto`).
+
+6. **Inventory Service → MySQL (inventory_db)**  
+   Consulta el stock disponible con `SELECT * FROM inventory_items WHERE product_id = ?`.
+
+#### Flujos Alternativos
+
+**A) Stock Suficiente** ✅
+- Inventory Service actualiza la tabla `inventory_items` descontando la cantidad solicitada
+- Inserta un registro en la tabla `purchases` con el detalle de la compra
+- La base de datos confirma la operación (COMMIT)
+- Responde al cliente con `200 OK` y `PurchaseResponse` (id, totalPrice, purchasedAt)
+
+**B) Stock Insuficiente** ❌
+- Inventory Service detecta que `stock < quantity`
+- Lanza `InsufficientStockException`
+- Responde `400 Bad Request` con mensaje: "Insufficient stock"
+
+**C) Producto No Existe** ❌
+- Product Service no encuentra el producto en su BD
+- Responde `404 Not Found` con mensaje: "Product not found"
+
+**D) Inventario No Existe** ❌
+- Inventory Service no encuentra registro de inventario para el productId
+- Responde `404 Not Found` con mensaje: "Inventory not found"
+
+#### Códigos de Estado HTTP
+
+| Código | Escenario | Descripción |
+|--------|-----------|-------------|
+| `200 OK` | Compra exitosa | Stock descontado y compra registrada |
+| `400 Bad Request` | Stock insuficiente | No hay suficiente cantidad disponible |
+| `401 Unauthorized` | API Key inválida | Header X-API-KEY faltante o incorrecto |
+| `404 Not Found` | Producto/Inventario no existe | El ID solicitado no se encuentra |
+| `409 Conflict` | SKU duplicado | Ya existe un producto con ese SKU |
+| `500 Internal Error` | Error del servidor | Error inesperado en el procesamiento |
+
+---
+
+## Explicación del flujo de compra implementado
+
+### Endpoint de Compra
+
+```http
+POST /api/inventory/purchases
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "quantity": 5
+}
+```
+
+### Pasos del Flujo (Implementación)
+
+#### 1️⃣ Recepción de la Solicitud
+
+El `InventoryController` recibe la petición y valida el DTO:
+
+```java
+@PostMapping("/purchases")
+public ResponseEntity<PurchaseResponse> purchase(@Valid @RequestBody PurchaseRequest request) {
+    PurchaseResponse response = inventoryService.purchase(request);
+    return ResponseEntity.ok(response);
+}
+```
+
+**Validaciones automáticas**:
+- `productId` no puede ser null
+- `quantity` debe ser mayor a 0
+
+#### 2️⃣ Obtención de Datos del Producto
+
+El `InventoryService` llama al `ProductClient` para obtener información del producto:
+
+```java
+ProductDto product = productClient.getProductById(request.getProductId());
+```
+
+**ProductClient** hace la llamada HTTP con reintentos:
+```java
+GET http://product-service:8081/api/products/1
+Headers:
+  X-API-KEY: my-super-secret-key
+```
+
+**Reintentos automáticos**:
+- Intento 1: Si falla por timeout → espera
+- Intento 2: Reintenta la llamada
+- Intento 3: Último intento
+- Si falla 3 veces → lanza excepción
+
+#### 3️⃣ Verificación de Stock
+
+Consulta el inventario en la base de datos local:
+
+```java
+InventoryItem item = inventoryItemRepository
+    .findByProductId(request.getProductId())
+    .orElseThrow(() -> new IllegalArgumentException("Inventory not found"));
+
+if (item.getQuantity() < request.getQuantity()) {
+    throw new InsufficientStockException("Not enough stock");
+}
+```
+
+#### 4️⃣ Descuento de Inventario
+
+Si hay stock suficiente, actualiza la cantidad:
+
+```java
+item.setQuantity(item.getQuantity() - request.getQuantity());
+inventoryItemRepository.save(item);
+```
+
+**SQL generado por Hibernate**:
+```sql
+UPDATE inventory_items 
+SET quantity = quantity - 5 
+WHERE product_id = 1;
+```
+
+#### 5️⃣ Registro de la Compra
+
+Calcula el precio total y registra la transacción:
+
+```java
+BigDecimal unitPrice = product.getPrice();
+BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(request.getQuantity()));
+
+Purchase purchase = Purchase.builder()
+    .productId(request.getProductId())
+    .quantity(request.getQuantity())
+    .unitPrice(unitPrice)
+    .totalPrice(totalPrice)
+    .build();
+
+Purchase saved = purchaseRepository.save(purchase);
+```
+
+**SQL generado**:
+```sql
+INSERT INTO purchases (product_id, quantity, unit_price, total_price, purchased_at)
+VALUES (1, 5, 2500.00, 12500.00, '2025-12-04 10:30:00');
+```
+
+#### 6️⃣ Respuesta al Cliente
+
+Devuelve el objeto `PurchaseResponse`:
+
+```json
+{
+  "id": 1,
+  "productId": 1,
+  "quantity": 5,
+  "unitPrice": 2500.00,
+  "totalPrice": 12500.00,
+  "purchasedAt": "2025-12-04T10:30:00"
+}
+```
+
+### Transaccionalidad
+
+Todo el flujo está envuelto en una transacción:
+
+```java
+@Transactional
+public PurchaseResponse purchase(PurchaseRequest request) {
+    // Si cualquier paso falla, se hace ROLLBACK automático
+}
+```
+
+**Garantías ACID**:
+- **Atomicity**: O se completa todo o no se completa nada
+- **Consistency**: Los datos quedan en estado consistente
+- **Isolation**: Compras concurrentes no interfieren entre sí
+- **Durability**: Una vez confirmada, la compra persiste
+
+### Ejemplo Completo
+
+**Request**:
+```bash
+curl -X POST http://localhost:8082/api/inventory/purchases \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productId": 1,
+    "quantity": 3
+  }'
+```
+
+**Response exitosa**:
+```json
+{
+  "id": 15,
+  "productId": 1,
+  "quantity": 3,
+  "unitPrice": 1500.00,
+  "totalPrice": 4500.00,
+  "purchasedAt": "2025-12-04T15:45:30"
+}
+```
+
+**Response con error (stock insuficiente)**:
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Not enough stock for product 1",
+  "path": "/api/inventory/purchases",
+  "timestamp": "2025-12-04T15:45:30"
+}
+```
+
+---
+
+## Documentación sobre el uso de herramientas de IA
+
+### Herramientas Utilizadas
+
+Durante el desarrollo de esta prueba técnica, utilicé las siguientes herramientas de IA:
+
+#### 1. GitHub Copilot (VS Code Extension)
+
+**Uso principal**: Autocompletado de código y generación de métodos.
+
+**Tareas específicas**:
+- **Generación de DTOs**: Copilot sugirió automáticamente los campos de `ProductRequest`, `ProductResponse`, `PurchaseRequest`, etc., basándose en las entidades del dominio
+- **Builders de Lombok**: Ayudó a generar los builders correctamente con anotaciones `@Builder`, `@NoArgsConstructor`, `@AllArgsConstructor`
+- **Tests unitarios**: Generó la estructura base de los tests con `@BeforeEach`, mocks de repositorios y casos de prueba básicos
+- **Métodos de repositorio**: Sugirió queries de Spring Data JPA como `findByProductId`, `existsBySku`
+
+**Ejemplo de uso**:
+```java
+// Escribí el comentario:
+// Create a method to validate if a product exists by SKU
+
+// Copilot sugirió:
+public boolean existsBySku(String sku) {
+    return productRepository.existsBySku(sku);
+}
+```
+
+**Verificación de calidad**:
+- ✅ Revisé cada sugerencia antes de aceptarla
+- ✅ Validé que las anotaciones de Spring fueran correctas
+- ✅ Ejecuté tests para confirmar que el código funcionaba
+
+#### 2. Claude (Anthropic) via GitHub Copilot Chat
+
+**Uso principal**: Consultas sobre arquitectura y mejores prácticas.
+
+**Tareas específicas**:
+- **Decisión del endpoint de compra**: Consulté si debía estar en Product o Inventory Service. Claude recomendó Inventory Service por separación de responsabilidades
+- **Manejo de excepciones**: Pregunté sobre el patrón `@RestControllerAdvice` y cómo estructurar los `ErrorResponse`
+- **Configuración de RestTemplate**: Claude sugirió usar Apache HttpClient 5 con connection pooling y timeouts
+- **Patrón de reintentos**: Explicó cómo implementar reintentos sin usar librerías adicionales como Resilience4j
+
+**Ejemplo de consulta**:
+```
+Pregunta: "¿Dónde debería estar el endpoint de compra, 
+en product-service o inventory-service?"
+
+Respuesta de Claude:
+"Debería estar en inventory-service porque:
+1. La compra es una operación sobre el stock
+2. Inventory debe controlar las transacciones de su propia BD
+3. Product Service debe enfocarse solo en el catálogo
+..."
+```
+
+**Verificación
+
+**Verificación de calidad**:
+- ✅ Contraté las respuestas con la documentación oficial de Spring
+- ✅ Implementé las recomendaciones y las probé
+- ✅ Adapté las sugerencias al contexto específico de mi aplicación
+
+#### 3. ChatGPT (OpenAI) - Consultas puntuales
+
+**Uso principal**: Debugging y explicación de errores.
+
+**Tareas específicas**:
+- **Error de dependencias Maven**: Cuando tuve conflictos con `httpclient5`, ChatGPT explicó la diferencia entre HttpClient 4 y 5
+- **Configuración de Docker Compose**: Ayudó a configurar las variables de entorno correctamente
+- **Migracion PostgreSQL → MySQL**: Explicó las diferencias de sintaxis SQL (BIGSERIAL vs AUTO_INCREMENT)
+
+**Ejemplo**:
+```
+Error: The method setConnectTimeout(int) is undefined
+
+ChatGPT explicó que en HttpClient 5 se usa:
+Timeout.of(milliseconds, TimeUnit.MILLISECONDS)
+```
+
+**Verificación**:
+- ✅ Comprobé las soluciones en la documentación oficial
+- ✅ Ejecuté tests para validar que funcionara
+
+### Proceso de Validación de Código Generado por IA
+
+Para garantizar la calidad del código, seguí este proceso:
+
+1. **Revisión manual**: Cada sugerencia fue revisada línea por línea
+2. **Compilación**: El código debe compilar sin errores ni warnings
+3. **Tests unitarios**: Todo código nuevo debe tener test que pase
+4. **Tests de integración**: Validar el flujo completo con BD real
+5. **Pruebas manuales**: Usar Postman para probar endpoints
+6. **Code review mental**: Preguntarme "¿Entiendo qué hace este código?"
+
+### Estadística de Uso de IA
+
+Estimación de uso de IA en el proyecto:
+
+- **Código de lógica de negocio (Services)**: 20% IA, 80% manual
+- **Controladores (Controllers)**: 40% IA (estructura), 60% manual (lógica)
+- **DTOs y Entidades**: 60% IA (sugerencias), 40% manual (validaciones)
+- **Tests**: 50% IA (estructura base), 50% manual (casos específicos)
+- **Configuración (Config classes)**: 30% IA, 70% manual
+- **Documentación**: 5% IA (formateo), 95% manual
+
+**Total aproximado**: 35% asistido por IA, 65% desarrollo manual
+
+### Beneficios y Limitaciones
+
+**Beneficios del uso de IA**:
+- ⚡ Velocidad: Autocompletado redujo tiempo en tareas repetitivas
+- 📚 Aprendizaje: Claude explicó conceptos que no conocía completamente
+- 🐛 Debugging: ChatGPT ayudó a identificar problemas rápidamente
+- 💡 Ideas: Copilot sugirió patrones que no había considerado
+
+**Limitaciones encontradas**:
+- ❌ A veces sugiere código deprecated (ej: `setConnectTimeout(int)`)
+- ❌ No siempre entiende el contexto completo del proyecto
+- ❌ Puede sugerir over-engineering para casos simples
+- ❌ Requiere validación constante de las sugerencias
+
+### Conclusión
+
+Las herramientas de IA fueron **asistentes útiles** pero no reemplazaron el pensamiento crítico ni la toma de decisiones. Cada línea de código fue revisada, comprendida y validada antes de ser integrada al proyecto.
+
+---
+
+## Estructura del repositorio
+
+```txt
+spring-tech-test/
+├── db/
+│   └── init.sql                    # Script SQL de inicialización para MySQL
+├── docker-compose.yml              # Orquestación de servicios
+├── new_interaction_diagram_final3.png  # Diagrama de interacción entre servicios
+├── product-service/
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/jdvergara/techtest/product/
+│       │   │   ├── ProductServiceApplication.java
+│       │   │   ├── config/
+│       │   │   │   ├── ApiKeyFilter.java          # Validación de API Key
+│       │   │   │   ├── ApiKeyProperties.java
+│       │   │   │   ├── ApplicationStartupLogger.java
+│       │   │   │   ├── DatabaseConnectionLogger.java
+│       │   │   │   └── HealthCheckConfig.java
+│       │   │   ├── controller/
+│       │   │   │   └── ProductController.java     # Endpoints REST
+│       │   │   ├── domain/
+│       │   │   │   └── Product.java               # Entidad JPA
+│       │   │   ├── dto/
+│       │   │   │   ├── ProductRequest.java
+│       │   │   │   └── ProductResponse.java
+│       │   │   ├── exception/
+│       │   │   │   ├── DuplicateProductException.java
+│       │   │   │   ├── ErrorResponse.java
+│       │   │   │   ├── GlobalExceptionHandler.java
+│       │   │   │   └── ProductNotFoundException.java
+│       │   │   ├── repository/
+│       │   │   │   └── ProductRepository.java     # Spring Data JPA
+│       │   │   └── service/
+│       │   │       └── ProductService.java        # Lógica de negocio
+│       │   └── resources/
+│       │       └── application.yaml               # Configuración
+│       └── test/
+│           └── java/com/jdvergara/techtest/product/
+│               ├── controller/
+│               │   └── ProductControllerIntegrationTest.java
+│               ├── service/
+│               │   └── ProductServiceTest.java
+│               └── ProductServiceApplicationTests.java
+├── inventory-service/
+│   ├── Dockerfile
+│   ├── pom.xml
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/jdvergara/techtest/inventory_service/
+│       │   │   ├── InventoryServiceApplication.java
+│       │   │   ├── client/
+│       │   │   │   └── ProductClient.java         # Cliente HTTP a Product Service
+│       │   │   ├── config/
+│       │   │   │   ├── ApplicationStartupLogger.java
+│       │   │   │   ├── HealthCheckConfig.java
+│       │   │   │   ├── ProductServiceApiKeyProperties.java
+│       │   │   │   ├── ProductServiceClientProperties.java
+│       │   │   │   └── RestTemplateConfig.java    # Configuración HTTP
+│       │   │   ├── controller/
+│       │   │   │   └── InventoryController.java   # Endpoints REST
+│       │   │   ├── domain/
+│       │   │   │   ├── InventoryItem.java         # Entidad JPA
+│       │   │   │   └── Purchase.java              # Entidad JPA
+│       │   │   ├── dto/
+│       │   │   │   ├── InventoryItemRequest.java
+│       │   │   │   ├── InventoryItemResponse.java
+│       │   │   │   ├── ProductDto.java            # DTO para Product Service
+│       │   │   │   ├── PurchaseRequest.java
+│       │   │   │   └── PurchaseResponse.java
+│       │   │   ├── exception/
+│       │   │   │   ├── ErrorResponse.java
+│       │   │   │   ├── GlobalExceptionHandler.java
+│       │   │   │   └── InsufficientStockException.java
+│       │   │   ├── repository/
+│       │   │   │   ├── InventoryItemRepository.java
+│       │   │   │   └── PurchaseRepository.java
+│       │   │   └── service/
+│       │   │       └── InventoryService.java      # Lógica de negocio
+│       │   └── resources/
+│       │       └── application.yaml
+│       └── test/
+│           └── java/com/jdvergara/techtest/inventory_service/
+│               ├── controller/
+│               │   └── InventoryControllerIntegrationTest.java
+│               ├── service/
+│               │   └── InventoryServiceTest.java
+│               └── InventoryServiceApplicationTests.java
+└── README.md
+```
 
 ---
 
@@ -182,3 +956,48 @@ spring-tech-test/
       test/
         ... (tests básicos / pendientes)
   README.md
+
+
+---
+
+## Flujo de Git / Git Flow utilizado
+
+Utilic� un flujo inspirado en **Git Flow** para organizar el desarrollo:
+
+### Ramas Principales
+
+- **`main`**: Rama principal estable, contiene c�digo listo para producci�n
+- **`develop`**: Rama de desarrollo donde se integran todas las features
+
+### Ramas de Feature
+
+Cre� ramas espec�ficas para cada funcionalidad:
+
+- **`feature/product-service`**: Implementaci�n inicial del microservicio de productos
+- **`feature/product-service-crudv1`**: CRUD completo de productos
+- **`feature/inventory-service`**: Esqueleto del microservicio de inventario
+- **`feature/inventory-service-crudv1`**: Gesti�n de stock y compras
+- **`security_integrations`**: API Key, interceptores, cliente HTTP, timeouts y reintentos
+
+### Convenciones de Commits
+
+- `feat:` - Nueva funcionalidad
+- `fix:` - Correcci�n de bugs
+- `refactor:` - Refactorizaci�n de c�digo
+- `test:` - Adici�n o modificaci�n de tests
+- `docs:` - Cambios en documentaci�n
+- `chore:` - Tareas de mantenimiento
+
+---
+
+## Contacto
+
+**Autor**: Jos� David Vergara L�pez  
+**GitHub**: [jodavelo](https://github.com/jodavelo)  
+**Repository**: [SPRING-TECH-TEST](https://github.com/jodavelo/SPRING-TECH-TEST)
+
+---
+
+## Licencia
+
+Este proyecto fue desarrollado como prueba t�cnica y est� disponible para revisi�n y evaluaci�n.
