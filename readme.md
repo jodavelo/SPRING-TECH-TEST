@@ -81,6 +81,25 @@ Inicialmente empecé con PostgreSQL en Docker, pero para simplificar la prueba y
 
 ---
 
+## Cómo ejecutar la solución
+
+### Requisitos
+
+- Docker y Docker Compose
+- Java 17
+- Maven (o usar `mvnw` incluido en cada microservicio)
+
+---
+
+### Ejecución completa con Docker
+
+Para efectos de la prueba, dejé todo preparado para que la solución se pueda levantar solo con Docker:
+
+```bash
+# Desde la raíz del proyecto
+docker compose up --build
+
+
 ## Flujo de Git / Git Flow utilizado
 
 Usé un flujo ligero inspirado en **Git Flow**. Las ramas principales que utilicé son:
