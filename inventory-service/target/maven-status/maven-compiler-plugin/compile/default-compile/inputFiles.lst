@@ -1,6 +1,11 @@
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\client\ProductClient.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\ApplicationStartupLogger.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\HealthCheckConfig.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\OpenApiConfig.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\ProductServiceApiKeyProperties.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\ProductServiceClientProperties.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\config\RestTemplateConfig.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\controller\InventoryController.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\domain\InventoryItem.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\domain\Purchase.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\InventoryItemRequest.java
@@ -8,6 +13,10 @@ D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\ProductDto.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\PurchaseRequest.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\dto\PurchaseResponse.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\exception\GlobalExceptionHandler.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\exception\InsufficientStockException.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\exception\ProductNotFoundException.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\InventoryServiceApplication.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\repository\InventoryItemRepository.java
 D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\repository\PurchaseRepository.java
+D:\java\spring-tech-test\inventory-service\src\main\java\com\jdvergara\techtest\inventory_service\service\InventoryService.java
